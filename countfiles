@@ -1,0 +1,40 @@
+#!/software/python-2.7.3/bin/python
+from mpi4py import MPI
+from lib.parallelwalk  import ParallelWalk
+
+class counter():
+    def __init__(self):
+        self.nfiles=0
+        self.ndirs=0
+
+class pcount(ParallelWalk):
+    def ProcessFile(self, filename):
+        self.results.nfiles += 1
+
+    def ProcessDir(self, dirname):
+        self.results.ndirs += 1
+
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+workers = comm.size
+totaldirs = 0
+totalfiles = 0
+
+count=counter()
+crawler = pcount(comm, results=count)
+
+if rank == 0:
+    seed="/lustre/scratch114/projects/crohns/"
+else:
+    seed=None
+
+results = crawler.Execute(seed)
+
+if rank == 0:
+    for i, r in enumerate(results):
+        print "Rank %i: %i dirs, %i files" % (i, r.ndirs, r.nfiles)
+        totaldirs += r.ndirs
+        totalfiles += r.nfiles
+    print "%i dirs, %i files" %(totaldirs, totalfiles)
+    print "done!"

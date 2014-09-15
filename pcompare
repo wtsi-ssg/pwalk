@@ -1,0 +1,139 @@
+#!/software/python-2.7.3/bin/python
+# Copyright Genome Research Ltd
+# Author gmpc@sanger.ac.uk
+"""
+Parallel directory comparision. This program compares the contents of
+two directory trees.
+
+"""
+
+try:
+    from mpi4py import MPI
+except ImportError:
+    print """
+ERROR: This program requires your environment to be configured 
+for MPI. Please see:
+http://mediawiki.internal.sanger.ac.uk/wiki/index.php/How_to_run_MPI_jobs_on_the_farm
+"""
+    exit(1)
+
+
+from lib.parallelwalk  import ParallelWalk
+import argparse
+import os
+import stat
+import sys
+import traceback
+import hashlib
+import ctypes
+from lib.readdir import readdir
+import math
+
+def safestat(filename):
+    """lstat sometimes get Interrupted system calls; wrap it up so we can
+    retry"""
+    while True:
+        try:
+            statdata = os.lstat(filename)
+            return(statdata)
+        except IOError, error:
+            if error.errno != 4:
+                raise
+
+def mungePath(src, dst, f):
+    """Convert the sourcepath to the desinationpath"""
+    suffix = f.partition(src)[2]
+    dest = dst + suffix
+    return(dest)
+
+
+class pcmp(ParallelWalk):
+    """Extend the generic parallel walk to stat and compare files
+    """
+    def ProcessFile(self, filename):
+        """
+        stat the source and destination files; complain if they are different.
+        """
+        dstfile = mungePath(dir1, dir2, filename)
+        try:
+            srcsize = safestat(filename).st_size
+        except OSError as error:
+            print "cannot access `%s':" % filename,
+            print os.strerror(error.errno)
+            srcsize = None
+        try:
+            dstsize = safestat(dstfile).st_size
+        except OSError as error:
+            print "cannot access `%s':" % dstfile,
+            print os.strerror(error.errno)
+            dstsize = None
+
+        self.results += 1
+        if srcsize <> dstsize:
+            print "R%i: MISMATCH: %s %s: %s %s" %(rank, filename, dstfile, srcsize, dstsize)
+
+        if VERBOSE:
+            print "R%i: %s %s: %s %s" %(rank, filename, dstfile, srcsize, dstsize)
+
+
+class MPIargparse(argparse.ArgumentParser):
+    """Subclass argparse so we can add a call to Abort, to tidy up MPI bits and pieces."""
+    def error(self,message):
+        self.print_usage(sys.stderr)
+        Abort()
+
+    def print_help(self, file=None):
+        argparse.ArgumentParser.print_help(self, file=None)
+        Abort()
+
+def Abort():
+    print ""
+    MPI.COMM_WORLD.Abort(0)
+    exit (1)
+
+def parseargs():
+    parser = MPIargparse(
+        formatter_class = argparse.RawDescriptionHelpFormatter,
+        description = """Parallel directory compare. This program will walk 
+two directory trees and compare the sizes all files.""",
+        epilog="""
+Example bsub:
+
+bsub -R"span[ptile=1]" -n 10 mpirun pcompare  /some/directory /another/directory
+
+"""
+)
+    parser.add_argument("DIR", nargs=2, help="Directories to compare.")
+    parser.add_argument("-v", help="verbose", default=False, action="store_true")
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        Abort()
+
+    args = parser.parse_args()
+    return(args)
+
+# Begin main program. We have to catch exceptions
+# and call MPIABORT, otherwise other ranks will
+# hang indefinately.
+try:
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    workers = comm.size
+
+    args = parseargs()
+    dir1 = args.DIR[0].rstrip("/")
+    dir2 = args.DIR[1].rstrip("/")
+    VERBOSE = args.v
+    
+    crawler = pcmp(comm, results=0)
+    results = crawler.Execute(dir1)
+    if rank == 0:
+        total = sum(results)
+        print "%i files compared" %total
+    exit(0)
+
+except (Exception, KeyboardInterrupt), err:
+    print "Exception on rank %i" %rank
+    print traceback.format_exc()
+    Abort()

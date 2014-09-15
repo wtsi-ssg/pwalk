@@ -1,0 +1,20 @@
+#!/software/python-2.7.3/bin/python
+# Example program to crawl filesystem in parallel and print filenames.
+
+from mpi4py import MPI
+from lib.parallelwalk  import ParallelWalk
+
+class printfile(ParallelWalk):
+    def ProcessFile(self, filename):
+        print filename
+
+    def ProcessDir(self, filename):
+        print filename
+
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+workers = comm.size
+
+crawler = printfile(comm, results=0)
+crawler.Execute("/lustre/scratch110/sanger/gmpc/test")
