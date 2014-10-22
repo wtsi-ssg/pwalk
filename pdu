@@ -35,6 +35,11 @@ def safestat(filename):
             if error.errno != 4:
                 raise
 
+class Results():
+    def __init__(self):
+        self.size=0
+        self.count=0
+
 class du(ParallelWalk):
     """Extend the generic parallel walk class so that is counts the size
     of all the files the crawler encounters.
@@ -43,8 +48,8 @@ class du(ParallelWalk):
         # du counts used block to report sparse file size, so we do the 
         # same here.
         size = os.lstat(filename).st_blocks * 512
-        self.results += size
-
+        self.results.size += size
+        self.results.count += 1
 
 class MPIargparse(argparse.ArgumentParser):
     """Subclass argparse so we can add a call to Abort, to tidy up MPI bits and pieces."""
@@ -64,10 +69,10 @@ def Abort():
 def parseargs():
     parser = MPIargparse(
         formatter_class = argparse.RawDescriptionHelpFormatter,
-        description = "A parallel du implemntation of du -s. Prints summary disk space usage.", add_help=False,
+        description = "A parallel implemntation of du -s. Prints summary disk space usage and filecount.", add_help=False,
         epilog="""
 
-This program sumamarises disk usage for a directory and its children.
+This program sumamarises disk usage and number of files for a directory and its children.
 
 The program should be invoked via mpirun. In most cases it should also be 
 submitted via LSF.  Increase the process count to obtain the required amount 
@@ -98,6 +103,14 @@ def printsize(size, name):
     else:
         size = size/1024
     print "%s\t\t%s" %(size, name)
+
+def printdir(size, count, name):
+    if args.h == True:
+        size = prettyPrint(size)
+    else:
+        size = size/1024
+    print "%s\t%i\t%s" %(size, count, name)
+
 
 
 def prettyPrint(bytes):
@@ -145,10 +158,11 @@ try:
             if  stat.S_ISDIR(mode):
                 # Tell peers to start crawlers.
                 comm.bcast("Crawl", root=0)
-                crawler = du(comm, results=0)
+                crawler = du(comm, results=Results())
                 results = crawler.Execute(i)
-                size = sum(results)
-                printsize(size, i.split(topdir+"/")[1])
+                size = sum([ r.size for r in results])
+                count = sum([ r.count for r in results])
+                printdir(size, count, i.split(topdir+"/")[1])
             else:
                 size = statdata.st_blocks * 512
                 printsize (size, i.split(topdir+"/")[1])
@@ -159,7 +173,7 @@ try:
         while True:
             data = comm.bcast("", root=0)
             if data != "shutdown":
-                crawler = du(comm, results=0)
+                crawler = du(comm, results=Results())
                 crawler.Execute(None)
             else:
                 exit(0)
