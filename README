@@ -1,0 +1,46 @@
+About:
+------
+
+parallelwalk.py: a parallel directory traversal library. The library implements
+the algorithm described by LaFon, Misra and Bringhurst.
+
+http://conferences.computer.org/sc/2012/papers/1000a015.pdf
+
+The following tools are build on top of parallelwalk.py:
+
+pdu: a parallel du implementation.
+
+pmd5: a parallel directory comparision tool.
+
+Latest Version:
+---------------
+
+The latest version of pdu can be downloaded from 
+
+https://github.com/wtsi-ssg/pwalk
+
+
+Getting Started
+---------------
+
+pdu will summarise the disk usage and number of files for a directory. Its 
+output is similar to du -s. You can use the -h flag to print out disk usage is human readable 
+units.
+
+pdu should be invoked via mpirun (although it will run with a single process).
+
+mpirun -n10 pdu -h /my/big/directory
+
+The optimal amount of parallelism will depend on your filesystem implementation.
+Lustre (as of version 2.5) has a per-client metadata limit and so you will see increased 
+performance if you tell MPI to spread processes across a number of different clients. 
+
+2 processes per host and 10 hosts is a good starting point.
+
+
+Extending parallelwalk.py
+-------------------------
+
+parallelwalk provides a basic class that will walk the filesystem, but carry out no actions on
+files that it encounters. It should be easy to extend the class for use in your own programs. 
+See the pydoc documentation in the library for the details.
