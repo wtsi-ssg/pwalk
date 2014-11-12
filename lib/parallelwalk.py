@@ -1,5 +1,12 @@
-# Copyright Genome Research Ltd
-# Author gmpc@sanger.ac.uk
+#!/usr/bin/env python
+# Copyright Genome Research Ltd 2014
+# Author Guy Coates <gmpc@sanger.ac.uk>
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
 from mpi4py import MPI
 import os
 import random

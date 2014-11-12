@@ -1,6 +1,12 @@
-#!/software/python-2.7.3/bin/python
-# Copyright Genome Research Ltd
-# Author gmpc@sanger.ac.uk
+#!/usr/bin/env python
+# Copyright Genome Research Ltd 2014
+# Author Guy Coates <gmpc@sanger.ac.uk>
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
 """
 Parallel md5 comparision. This program compares the MD5sums of
 files in two directory trees.
@@ -10,16 +16,7 @@ good load distribution between the workers.
 
 """
 
-try:
-    from mpi4py import MPI
-except ImportError:
-    print """
-ERROR: This program requires your environment to be configured 
-for MPI. Please see:
-http://mediawiki.internal.sanger.ac.uk/wiki/index.php/How_to_run_MPI_jobs_on_the_farm
-"""
-    exit(1)
-
+from mpi4py import MPI
 
 from lib.parallelwalk  import ParallelWalk
 import argparse
@@ -200,14 +197,7 @@ def parseargs():
     parser = MPIargparse(
         formatter_class = argparse.RawDescriptionHelpFormatter,
         description = """Parallel md5tree compare. This program will walk 
-two directory trees and compare the md5sums of all files.""",
-        epilog="""
-Example bsub:
-
-bsub -R"span[ptile=1]" -n 10 mpirun pmd5  /some/directory /another/directory
-
-"""
-)
+two directory trees and compare the md5sums of all files.""")
     parser.add_argument("DIR", nargs=2, help="Directories to compare.")
     parser.add_argument("-v", help="verbose", default=False, action="store_true")
 

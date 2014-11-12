@@ -1,11 +1,20 @@
-#Copyright Genome Research Ltd
-# Author gmpc@sanger.ac.uk
-import ctypes
-import os
+#!/usr/bin/env python
+# Copyright Genome Research Ltd 2014
+# Author Guy Coates <gmpc@sanger.ac.uk>
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
 """
 This module provides a python interface to the readdir
 system call.
 """
+import ctypes
+import os
+
+
 
 # Ctypes boilerplate for readdir/opendir/closedir
 _clib = ctypes.CDLL("libc.so.6", use_errno=True)

@@ -1,21 +1,17 @@
-#!/software/python-2.7.3/bin/python
-# Copyright Genome Research Ltd
-# Author gmpc@sanger.ac.uk
+#!/usr/bin/env python
+# Copyright Genome Research Ltd 2014
+# Author Guy Coates <gmpc@sanger.ac.uk>
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
 """
 Parallel du implementation
 """
 
-try:
-    from mpi4py import MPI
-except ImportError:
-    print """
-ERROR: This program requires your environment to be configured 
-for MPI. Please see:
-http://mediawiki.internal.sanger.ac.uk/wiki/index.php/How_to_run_MPI_jobs_on_the_farm
-"""
-    exit(1)
-
-
+from mpi4py import MPI
 from lib.parallelwalk  import ParallelWalk
 import argparse
 import os
@@ -74,14 +70,8 @@ def parseargs():
 
 This program sumamarises disk usage and number of files for a directory and its children.
 
-The program should be invoked via mpirun. In most cases it should also be 
-submitted via LSF.  Increase the process count to obtain the required amount 
-of performance. For lustre, 10-20 processes seems optimal. For other 
-filesystems, YMMV.
-
-Example bsub:
-
-bsub -R"span[ptile=1]" -n 10 mpirun pdu  /some/directory
+The program should be invoked via mpirun. 
+Increase the process count to obtain the required amount of performance. 
 
 """
 )

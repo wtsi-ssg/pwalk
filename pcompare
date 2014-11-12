@@ -1,23 +1,18 @@
-#!/software/python-2.7.3/bin/python
-# Copyright Genome Research Ltd
-# Author gmpc@sanger.ac.uk
+#!/usr/bin/env python
+# Copyright Genome Research Ltd 2014
+# Author Guy Coates <gmpc@sanger.ac.uk>
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
 """
 Parallel directory comparision. This program compares the contents of
 two directory trees.
 
 """
-
-try:
-    from mpi4py import MPI
-except ImportError:
-    print """
-ERROR: This program requires your environment to be configured 
-for MPI. Please see:
-http://mediawiki.internal.sanger.ac.uk/wiki/index.php/How_to_run_MPI_jobs_on_the_farm
-"""
-    exit(1)
-
-
+from mpi4py import MPI
 from lib.parallelwalk  import ParallelWalk
 import argparse
 import os
@@ -95,13 +90,9 @@ def parseargs():
     parser = MPIargparse(
         formatter_class = argparse.RawDescriptionHelpFormatter,
         description = """Parallel directory compare. This program will walk 
-two directory trees and compare the sizes all files.""",
-        epilog="""
-Example bsub:
+two directory trees and compare the sizes all files. It should be invoked
+via mpirun."""
 
-bsub -R"span[ptile=1]" -n 10 mpirun pcompare  /some/directory /another/directory
-
-"""
 )
     parser.add_argument("DIR", nargs=2, help="Directories to compare.")
     parser.add_argument("-v", help="verbose", default=False, action="store_true")
