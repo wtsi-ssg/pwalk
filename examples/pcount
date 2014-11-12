@@ -1,0 +1,171 @@
+#!/software/python-2.7.3/bin/python
+# Copyright Genome Research Ltd
+# Author gmpc@sanger.ac.uk
+"""
+Parallel du implementation
+"""
+
+try:
+    from mpi4py import MPI
+except ImportError:
+    print """
+ERROR: This program requires your environment to be configured 
+for MPI. Please see:
+http://mediawiki.internal.sanger.ac.uk/wiki/index.php/How_to_run_MPI_jobs_on_the_farm
+"""
+    exit(1)
+
+
+from lib.parallelwalk  import ParallelWalk
+import argparse
+import os
+import stat
+import sys
+import traceback
+from lib import readdir
+
+def safestat(filename):
+    """lstat sometimes get Interrupted system calls; wrap it up so we can
+    retry"""
+    while True:
+        try:
+            statdata = os.lstat(filename)
+            return(statdata)
+        except IOError, error:
+            if error.errno != 4:
+                raise
+
+class du(ParallelWalk):
+    """Extend the generic parallel walk class so that is counts the size
+    of all the files the crawler encounters.
+    """
+    def ProcessFile(self, filename):
+        # du counts used block to report sparse file size, so we do the 
+        # same here.
+        size = os.lstat(filename).st_blocks * 512
+        self.results += size
+
+
+class MPIargparse(argparse.ArgumentParser):
+    """Subclass argparse so we can add a call to Abort, to tidy up MPI bits and pieces."""
+    def error(self,message):
+        self.print_usage(sys.stderr)
+        Abort()
+
+    def print_help(self, file=None):
+        argparse.ArgumentParser.print_help(self, file=None)
+        Abort()
+
+def Abort():
+    print ""
+    MPI.COMM_WORLD.Abort(0)
+    exit (0)
+
+def parseargs():
+    parser = MPIargparse(
+        formatter_class = argparse.RawDescriptionHelpFormatter,
+        description = "A parallel du implemntation of du -s. Prints summary disk space usage.", add_help=False,
+        epilog="""
+
+This program sumamarises disk usage for a directory and its children.
+
+The program should be invoked via mpirun. In most cases it should also be 
+submitted via LSF.  Increase the process count to obtain the required amount 
+of performance. For lustre, 10-20 processes seems optimal. For other 
+filesystems, YMMV.
+
+Example bsub:
+
+bsub -R"span[ptile=1]" -n 10 mpirun pdu  /some/directory
+
+"""
+)
+    parser.add_argument("-h", help="print sizes in human readable format.", action="store_true", 
+                        default=False)
+    parser.add_argument("-?","--help", action="help", help="print this help message.")
+    parser.add_argument("DIR", nargs=1, help="Directory to count.")
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        Abort()
+
+    args = parser.parse_args()
+    return(args)
+
+def printsize(size, name):
+    if args.h == True:
+        size = prettyPrint(size)
+    else:
+        size = size/1024
+    print "%s\t\t%s" %(size, name)
+
+
+def prettyPrint(bytes):
+    """convert bytes to k/M/G/T etc"""
+    abrevs = (
+        (1<<50,"P"),
+        (1<<40,"T"),
+        (1<<30,"G"),
+        (1<<20,"M"),
+        (1<<10,"k"),
+        (1,"")
+        )
+    for factor, suffix in abrevs:
+        if bytes >= factor:
+            break
+    string = "%.*f%s" % (2, bytes / float(factor), suffix)
+    return (string)
+
+
+# Begin main program
+try:
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    workers = comm.size
+
+    args = parseargs()
+    topdir = args.DIR[0].rstrip("/")
+
+    if rank == 0:
+        # Enumerate all of the files/dirs in the top level.
+        if workers == 1:
+            print "WARNING: Running in non-parallel mode."
+            print "Did you invoke me via mpirun...?"
+
+        try:
+            entries = [ e.d_name for e in readdir.readdir(topdir) if not e.d_name in [".", ".."] ]
+        except OSError, err:
+            print "OS Error: %s" %err
+            Abort()
+        fullpaths = [ os.path.join(topdir,e) for e in entries ]
+
+        for i in fullpaths:
+            statdata = os.lstat(i)
+            mode = statdata.st_mode
+            if  stat.S_ISDIR(mode):
+                # Tell peers to start crawlers.
+                comm.bcast("Crawl", root=0)
+                crawler = du(comm, results=0)
+                results = crawler.Execute(i)
+                size = sum(results)
+                printsize(size, i.split(topdir+"/")[1])
+            else:
+                size = statdata.st_blocks * 512
+                printsize (size, i.split(topdir+"/")[1])
+
+        comm.bcast("shutdown", root=0)
+    else:
+        # listen for work
+        while True:
+            data = comm.bcast("", root=0)
+            if data != "shutdown":
+                crawler = du(comm, results=0)
+                crawler.Execute(None)
+            else:
+                exit(0)
+
+except (Exception, KeyboardInterrupt), err:
+    print "Exception on rank %i" %rank
+    print err
+    print traceback.print_tb(sys.exc_info()[2])
+    Abort()
