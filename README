@@ -12,6 +12,8 @@ pdu: a parallel du implementation.
 
 pmd5: a parallel directory comparision tool.
 
+pfind: a parallel find tool that currently takes -newer T -size S and -name parameters.
+
 Latest Version:
 ---------------
 
