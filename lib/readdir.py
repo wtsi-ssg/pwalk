@@ -12,12 +12,18 @@ This module provides a python interface to the readdir
 system call.
 """
 import ctypes
+import platform
 import os
 
 
 
 # Ctypes boilerplate for readdir/opendir/closedir
-_clib = ctypes.CDLL("libc.so.6", use_errno=True)
+if platform.system() == 'Darwin':
+  mylibc = "/usr/lib/libc.dylib"
+else:
+  mylibc = "libc.so.6"
+
+_clib = ctypes.CDLL(mylibc, use_errno=True)
 
 class _cdirent(ctypes.Structure):
     _fields_ = [

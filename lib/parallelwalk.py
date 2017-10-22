@@ -11,7 +11,6 @@ from mpi4py import MPI
 import os
 import random
 import stat
-import readdir
 import time
 from collections import deque
 class ParallelWalk():
@@ -76,7 +75,7 @@ class ParallelWalk():
         self.comm = comm.Dup()
         self.rank = self.comm.Get_rank()
         self.workers = self.comm.size
-        self.others = range(0, self.rank) + range(self.rank+1, self.workers)
+        self.others = list(range(0, self.rank)) + list(range(self.rank+1, self.workers))
         self.nextworker = (self.rank + 1) % self.workers
         self.colour = "White"
         self.token = False
@@ -156,7 +155,11 @@ class ParallelWalk():
         """Process a node in the directory tree. If the node is another directory, 
         enumerate its contents and add it to the list of nodes to be processed in the 
         future."""
-        filename, filetype = self.items.pop()
+        try:
+          filename, filetype = self.items.pop()
+        except:
+          print ("Couldn't pop")
+          print (self.items)
 
         try:
             # If the filesystem supports readdir d_type, then we will know if the node is
@@ -172,17 +175,25 @@ class ParallelWalk():
             # If we a directory, enumerate its contents and add them to the list of nodes
             # to be processed.
             if filetype == 4:
-                for node in readdir.readdir(filename):
-                    if not node.d_name in (".",".."):
-                        fullname = os.path.join(filename, node.d_name)
-                        self.items.appendleft((fullname, node.d_type))
+                # readdir.readdir putting weird characters on my Mac . . . 
+                #for node in readdir.readdir(filename):
+                #    if not node.d_name in (".",".."):
+                #        fullname = os.path.join(filename, node.d_name)
+                #        self.items.appendleft((fullname, node.d_type))
             # Call the processing functions on the directory or file.
+                for node in os.scandir(filename):
+                  fullname = node.path
+                  if node.is_dir() is True:
+                    filetype = 4
+                  else:
+                    filetype = 8
+                  self.items.appendleft((fullname,filetype))
                 self.ProcessDir(filename)
             else:
                 self.ProcessFile(filename)
         except OSError as error:
-            print "cannot access `%s':" % filename,
-            print os.strerror(error.errno)
+            print ("cannot access `%s':" % filename,)
+            print (os.strerror(error.errno))
         return()
 
     def _AskForWork(self):
