@@ -18,7 +18,6 @@ import os
 import stat
 import sys
 import traceback
-from lib import readdir
 
 # checks whether a particular file matches the search criteria
 def check_match(filename):
@@ -162,33 +161,30 @@ try:
 
         try:
             # I'm seeing some weird bug where funny characters show up in the d_names...
-            #entries = [ e.d_name for e in eaddir.readdir(topdir) if not e.d_name in [".", ".."] ]
-            entries = os.listdir(topdir)
+            verbose("Doing scandir on %s" % topdir)
+            entries = os.scandir(topdir)
         except OSError as err:
             print ("OS Error: %s" %err)
             Abort()
-        fullpaths = [ os.path.join(topdir,e) for e in entries ]
 
         total_matches = 0
         total_entries = 0
 
-        verbose(fullpaths)
-        for i in fullpaths:
-            statdata = os.lstat(i)
-            mode = statdata.st_mode
-            if  stat.S_ISDIR(mode):
+        for e in entries:
+            fullpath = os.path.join(topdir,e.name)
+            if  e.is_dir() is True: 
                 # Tell peers to start crawlers.
                 comm.bcast("Crawl", root=0)
                 crawler = find(comm, results=Results())
-                results = crawler.Execute(i)
+                results = crawler.Execute(fullpath)
                 matches = sum([ r.matches for r in results])
                 entries = sum([ r.entries for r in results])
-                verbose ("%d/%d in %s" % (matches,entries, i))
+                verbose ("%d/%d in %s" % (matches,entries, fullpath))
                 total_matches += matches
                 total_entries += entries
             else:
                 total_entries += 1
-                if check_match(i):
+                if check_match(fullpath):
                   total_matches += 1
 
         comm.bcast("shutdown", root=0)
