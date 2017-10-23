@@ -20,6 +20,40 @@ import sys
 import traceback
 from lib import readdir
 
+# checks whether a particular file matches the search criteria
+def check_match(filename):
+  verbose( "Checking %s" % filename )
+  match=True 
+  if match is True and args.name is not None:
+    if args.name not in os.path.basename(filename):
+      match = False
+  
+  if match is True and args.size is not None:
+    stat_t = os.lstat(filename)
+    if int(args.size) != stat_t.st_size:
+      match = False
+
+  if match is True and args.newer is not None:
+    try:
+      mtime = stat_t.st_mtime
+    except UnboundLocalError:
+      stat_t = os.lstat(filename)
+      mtime = stat_t.st_mtime
+      
+    if int(args.newer) >= stat_t.st_mtime:
+      match = False
+
+  if match:
+    if args.silent is False:
+      print (filename)
+      try:
+        print (stat_t)
+      except:
+        pass
+    return True
+  else:
+    return False
+
 def safestat(filename):
     """lstat sometimes get Interrupted system calls; wrap it up so we can
     retry"""
@@ -38,33 +72,13 @@ class Results():
 
 class find(ParallelWalk):
 
-    def check_match(self, filename, stat_t):
-      match=True 
-      if match is True and args.name is not None:
-        if args.name not in os.path.basename(filename):
-          match = False
-      if match is True and args.size is not None:
-        if int(args.size) != stat_t.st_size:
-          match = False
-      if match is True and args.newer is not None:
-        if int(args.newer) >= stat_t.st_mtime:
-          match = False
-      if match:
-        if args.silent is False:
-          print (filename)
-          print (stat_t)
-        return True
-      else:
-        return False
-
     """Extend the generic parallel walk class so that is checks a match
     of all the files the crawler encounters.
     """
     def ProcessFile(self, filename):
-        stat_t = os.lstat(filename)
-        if self.check_match(filename,stat_t) is True:
-          self.results.matches += 1
         self.results.entries += 1
+        if check_match(filename) is True:
+          self.results.matches += 1
 
 class MPIargparse(argparse.ArgumentParser):
     """Subclass argparse so we can add a call to Abort, to tidy up MPI bits and pieces."""
@@ -77,7 +91,7 @@ class MPIargparse(argparse.ArgumentParser):
         Abort()
 
 def Abort():
-    print 
+    print ("Rank %d Aborting" % rank) 
     MPI.COMM_WORLD.Abort(0)
     exit (0)
 
@@ -100,8 +114,8 @@ Increase the process count to obtain the required amount of performance.
     parser.add_argument("DIR", nargs=1, help="Directory to count.")
     parser.add_argument("-v", help="verbose mode for debugging", action="store_true", default=False)
     parser.add_argument("-name", help="match substring in name", default=None)
-    parser.add_argument("-size", help="match file size", default=None)
-    parser.add_argument("-newer", help="match newer timestamps", default=None)
+    parser.add_argument("-size", help="just like gnu find", default=None)
+    parser.add_argument("-newer", help="just like gnu find", default=None)
     parser.add_argument("-silent", help="silent. Don't output names", action="store_true", default=False)
 
     if len(sys.argv) == 1:
@@ -127,6 +141,18 @@ try:
     topdir = args.DIR[0].rstrip("/")
 
     verbose("Rank checking in.")
+
+    # if the user asked to check -newer, rank 0 stats file and bcast the mtime
+    if args.newer != None:
+      if rank == 0:
+        try:
+          stat_t = os.lstat(args.newer)
+        except OSError:
+          print ("No such file %s" % args.newer)
+          Abort()
+        args.newer = stat_t.st_mtime
+      args.newer = comm.bcast(args.newer, root=0)
+      verbose("Newer time is %d\n" % args.newer)
 
     if rank == 0:
         # Enumerate all of the files/dirs in the top level.
@@ -161,7 +187,9 @@ try:
                 total_matches += matches
                 total_entries += entries
             else:
-                print ("Not sure what to do about %s" % i)
+                total_entries += 1
+                if check_match(i):
+                  total_matches += 1
 
         comm.bcast("shutdown", root=0)
 
