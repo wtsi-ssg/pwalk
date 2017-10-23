@@ -181,14 +181,15 @@ class ParallelWalk():
                 #        fullname = os.path.join(filename, node.d_name)
                 #        self.items.appendleft((fullname, node.d_type))
             # Call the processing functions on the directory or file.
-                for node in os.scandir(filename):
-                  fullname = node.path
-                  if node.is_dir() is True:
-                    filetype = 4
-                  else:
-                    filetype = 8
-                  self.items.appendleft((fullname,filetype))
-                self.ProcessDir(filename)
+                with os.scandir(filename) as iterator:
+                  for node in iterator:
+                    fullname = node.path
+                    if node.is_dir() is True:
+                      filetype = 4
+                    else:
+                      filetype = 8
+                    self.items.appendleft((fullname,filetype))
+                  self.ProcessDir(filename)
             else:
                 self.ProcessFile(filename)
         except OSError as error:

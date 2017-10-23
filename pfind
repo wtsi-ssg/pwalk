@@ -162,7 +162,7 @@ try:
         try:
             # I'm seeing some weird bug where funny characters show up in the d_names...
             verbose("Doing scandir on %s" % topdir)
-            entries = os.scandir(topdir)
+            d_ents = os.scandir(topdir)
         except OSError as err:
             print ("OS Error: %s" %err)
             Abort()
@@ -170,7 +170,7 @@ try:
         total_matches = 0
         total_entries = 0
 
-        for e in entries:
+        for e in d_ents:
             fullpath = os.path.join(topdir,e.name)
             if  e.is_dir() is True: 
                 # Tell peers to start crawlers.
@@ -186,6 +186,7 @@ try:
                 total_entries += 1
                 if check_match(fullpath):
                   total_matches += 1
+        d_ents.close()
 
         comm.bcast("shutdown", root=0)
 
