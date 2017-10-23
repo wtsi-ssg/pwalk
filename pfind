@@ -171,20 +171,19 @@ try:
         total_entries = 0
 
         for e in d_ents:
-            fullpath = os.path.join(topdir,e.name)
             if  e.is_dir() is True: 
                 # Tell peers to start crawlers.
                 comm.bcast("Crawl", root=0)
                 crawler = find(comm, results=Results())
-                results = crawler.Execute(fullpath)
+                results = crawler.Execute(e.path)
                 matches = sum([ r.matches for r in results])
                 entries = sum([ r.entries for r in results])
-                verbose ("%d/%d in %s" % (matches,entries, fullpath))
+                verbose ("%d/%d in %s" % (matches,entries, e.path))
                 total_matches += matches
                 total_entries += entries
             else:
                 total_entries += 1
-                if check_match(fullpath):
+                if check_match(e.path):
                   total_matches += 1
         d_ents.close()
 
