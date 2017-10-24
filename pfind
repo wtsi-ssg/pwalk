@@ -138,6 +138,11 @@ try:
 
     args = parseargs()
     topdir = args.DIR[0].rstrip("/")
+    if args.size is not None: # io500 calls it with a size like 3901c, just strip the c here
+      args.size=int(''.join(ele for ele in args.size if ele.isdigit()))
+
+    if args.name is not None: # io500 calls it with '*' wildcards, strip them
+      args.name=''.join(ele for ele in args.name if ele is not "*")
 
     verbose("Rank checking in.")
 
@@ -154,13 +159,12 @@ try:
       verbose("Newer time is %d\n" % args.newer)
 
     if rank == 0:
-        # Enumerate all of the files/dirs in the top level.
         if workers == 1 and args.silent is not True:
             print ("WARNING: Running in non-parallel mode.")
             print ("Did you invoke me via mpirun...?")
 
+        # Enumerate all of the files/dirs in the top level.
         try:
-            # I'm seeing some weird bug where funny characters show up in the d_names...
             verbose("Doing scandir on %s" % topdir)
             d_ents = os.scandir(topdir)
         except OSError as err:
@@ -188,8 +192,8 @@ try:
         d_ents.close()
 
         comm.bcast("shutdown", root=0)
-
-        print ( "%d/%d" % (total_matches,total_entries))
+        comm.barrier()
+        print ( "MATCHED %d/%d" % (total_matches,total_entries))
     else:
         # listen for work
         while True:
@@ -198,6 +202,7 @@ try:
                 crawler = find(comm, results=Results())
                 crawler.Execute(None)
             else:
+                comm.barrier()
                 exit(0)
 
 except (Exception, KeyboardInterrupt) as err:
