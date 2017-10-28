@@ -71,7 +71,7 @@ class ParallelWalk():
 
 
 """
-    def __init__(self, comm, results=None):
+    def __init__(self, comm, results=None, stonewall=0):
         self.comm = comm.Dup()
         self.rank = self.comm.Get_rank()
         self.workers = self.comm.size
@@ -84,7 +84,15 @@ class ParallelWalk():
         self.items = deque()
         self.results = results
         self.finished = False
+        self.start_time = time.time()
+        self.stonewall = stonewall
 
+    def _stonewall(self):
+      if (self.stonewall > 0 and time.time() - self.start_time > self.stonewall):
+        print( "Rank %d: Hit stonewall %s seconds [elapsed=%.3f]" % (self.rank,self.stonewall, time.time()-self.start_time) )
+        return True
+      else:
+        return False
     
     def ProcessDir(self, directoryname):
         """This method is a stub called for each directory the walker 
@@ -219,6 +227,10 @@ class ParallelWalk():
                 self._sendShutdown()            
                 self.finished = True
 
+        # We could also be done if we have hit a timeout
+        if self._stonewall() == True:
+          self.finished = True
+
         # If we have the token, set the process and token colours as then send
         # the token on to the next process.
         if self.token != False:
@@ -272,6 +284,9 @@ class ParallelWalk():
         # If we have work, then do it, otherwise we ask our peers for some.
 
         while self.finished == False:
+            if self._stonewall() == True:
+              self.finished = True
+              break
             self._CheckforRequests ()
             if len(self.items) > 0:
                 self._ProcessNode()

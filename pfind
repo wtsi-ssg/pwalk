@@ -116,6 +116,7 @@ Increase the process count to obtain the required amount of performance.
     parser.add_argument("-size", help="just like gnu find", default=None)
     parser.add_argument("-newer", help="just like gnu find", default=None)
     parser.add_argument("-silent", help="silent. Don't output names", action="store_true", default=False)
+    parser.add_argument("-stonewall", help="Dont run for longer than a threshhold number of seconds", type=int, default=0)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -178,7 +179,7 @@ try:
             if  e.is_dir() is True: 
                 # Tell peers to start crawlers.
                 comm.bcast("Crawl", root=0)
-                crawler = find(comm, results=Results())
+                crawler = find(comm, results=Results(),stonewall=args.stonewall)
                 results = crawler.Execute(e.path)
                 matches = sum([ r.matches for r in results])
                 entries = sum([ r.entries for r in results])
@@ -199,7 +200,7 @@ try:
         while True:
             data = comm.bcast("", root=0)
             if data != "shutdown":
-                crawler = find(comm, results=Results())
+                crawler = find(comm, results=Results(), stonewall=args.stonewall)
                 crawler.Execute(None)
             else:
                 comm.barrier()
