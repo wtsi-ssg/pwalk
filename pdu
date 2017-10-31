@@ -27,7 +27,7 @@ def safestat(filename):
         try:
             statdata = os.lstat(filename)
             return(statdata)
-        except IOError as error:
+        except IOError, error:
             if error.errno != 4:
                 raise
 
@@ -43,7 +43,6 @@ class du(ParallelWalk):
     def ProcessFile(self, filename):
         # du counts used block to report sparse file size, so we do the 
         # same here.
-        verbose("Working on %s" % filename)
         size = os.lstat(filename).st_blocks * 512
         self.results.size += size
         self.results.count += 1
@@ -59,7 +58,7 @@ class MPIargparse(argparse.ArgumentParser):
         Abort()
 
 def Abort():
-    print 
+    print ""
     MPI.COMM_WORLD.Abort(0)
     exit (0)
 
@@ -80,7 +79,6 @@ Increase the process count to obtain the required amount of performance.
                         default=False)
     parser.add_argument("-?","--help", action="help", help="print this help message.")
     parser.add_argument("DIR", nargs=1, help="Directory to count.")
-    parser.add_argument("-v", help="verbose mode for debugging", action="store_true", default=False)
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -94,19 +92,14 @@ def printsize(size, name):
         size = prettyPrint(size)
     else:
         size = size/1024
-    print ("%s\t\t%s" % (size, name))
+    print "%s\t\t%s" %(size, name)
 
 def printdir(size, count, name):
     if args.h == True:
         size = prettyPrint(size)
     else:
         size = size/1024
-    print ("%s\t%i\t%s" %(size, count, name))
-
-
-def verbose(msg):
-  if args.v == True:
-    print ("# Rank %d: %s" % (rank, msg))
+    print "%s\t%i\t%s" %(size, count, name)
 
 
 
@@ -136,24 +129,19 @@ try:
     args = parseargs()
     topdir = args.DIR[0].rstrip("/")
 
-    verbose("Rank checking in.")
-
     if rank == 0:
         # Enumerate all of the files/dirs in the top level.
         if workers == 1:
-            print ("WARNING: Running in non-parallel mode.")
-            print ("Did you invoke me via mpirun...?")
+            print "WARNING: Running in non-parallel mode."
+            print "Did you invoke me via mpirun...?"
 
         try:
-            # I'm seeing some weird bug where funny characters show up in the d_names...
-            #entries = [ e.d_name for e in eaddir.readdir(topdir) if not e.d_name in [".", ".."] ]
-            entries = os.listdir(topdir)
-        except OSError as err:
-            print ("OS Error: %s" %err)
+            entries = [ e.d_name for e in readdir.readdir(topdir) if not e.d_name in [".", ".."] ]
+        except OSError, err:
+            print "OS Error: %s" %err
             Abort()
         fullpaths = [ os.path.join(topdir,e) for e in entries ]
 
-        verbose(fullpaths)
         for i in fullpaths:
             statdata = os.lstat(i)
             mode = statdata.st_mode
@@ -180,8 +168,8 @@ try:
             else:
                 exit(0)
 
-except (Exception, KeyboardInterrupt) as err:
-    print ("Exception on rank %i" %rank)
-    print (err)
-    print (traceback.print_tb(sys.exc_info()[2]))
+except (Exception, KeyboardInterrupt), err:
+    print "Exception on rank %i" %rank
+    print err
+    print traceback.print_tb(sys.exc_info()[2])
     Abort()

@@ -11,6 +11,7 @@ from mpi4py import MPI
 import os
 import random
 import stat
+import readdir
 import time
 from collections import deque
 class ParallelWalk():
@@ -71,11 +72,11 @@ class ParallelWalk():
 
 
 """
-    def __init__(self, comm, results=None, stonewall=0):
+    def __init__(self, comm, results=None):
         self.comm = comm.Dup()
         self.rank = self.comm.Get_rank()
         self.workers = self.comm.size
-        self.others = list(range(0, self.rank)) + list(range(self.rank+1, self.workers))
+        self.others = range(0, self.rank) + range(self.rank+1, self.workers)
         self.nextworker = (self.rank + 1) % self.workers
         self.colour = "White"
         self.token = False
@@ -84,15 +85,7 @@ class ParallelWalk():
         self.items = deque()
         self.results = results
         self.finished = False
-        self.start_time = time.time()
-        self.stonewall = stonewall
 
-    def _stonewall(self):
-      if (self.stonewall > 0 and time.time() - self.start_time > self.stonewall):
-        print( "Rank %d: Hit stonewall %s seconds [elapsed=%.3f]" % (self.rank,self.stonewall, time.time()-self.start_time) )
-        return True
-      else:
-        return False
     
     def ProcessDir(self, directoryname):
         """This method is a stub called for each directory the walker 
@@ -163,11 +156,7 @@ class ParallelWalk():
         """Process a node in the directory tree. If the node is another directory, 
         enumerate its contents and add it to the list of nodes to be processed in the 
         future."""
-        try:
-          filename, filetype = self.items.pop()
-        except:
-          print ("Couldn't pop")
-          print (self.items)
+        filename, filetype = self.items.pop()
 
         try:
             # If the filesystem supports readdir d_type, then we will know if the node is
@@ -183,26 +172,17 @@ class ParallelWalk():
             # If we a directory, enumerate its contents and add them to the list of nodes
             # to be processed.
             if filetype == 4:
-                # readdir.readdir putting weird characters on my Mac . . . 
-                #for node in readdir.readdir(filename):
-                #    if not node.d_name in (".",".."):
-                #        fullname = os.path.join(filename, node.d_name)
-                #        self.items.appendleft((fullname, node.d_type))
+                for node in readdir.readdir(filename):
+                    if not node.d_name in (".",".."):
+                        fullname = os.path.join(filename, node.d_name)
+                        self.items.appendleft((fullname, node.d_type))
             # Call the processing functions on the directory or file.
-                with os.scandir(filename) as iterator:
-                  for node in iterator:
-                    fullname = node.path
-                    if node.is_dir() is True:
-                      filetype = 4
-                    else:
-                      filetype = 8
-                    self.items.appendleft((fullname,filetype))
-                  self.ProcessDir(filename)
+                self.ProcessDir(filename)
             else:
                 self.ProcessFile(filename)
         except OSError as error:
-            print ("cannot access `%s':" % filename,)
-            print (os.strerror(error.errno))
+            print "cannot access `%s':" % filename,
+            print os.strerror(error.errno)
         return()
 
     def _AskForWork(self):
@@ -226,10 +206,6 @@ class ParallelWalk():
                 # Tell the other workers that they are done, and then quit.
                 self._sendShutdown()            
                 self.finished = True
-
-        # We could also be done if we have hit a timeout
-        if self._stonewall() == True:
-          self.finished = True
 
         # If we have the token, set the process and token colours as then send
         # the token on to the next process.
@@ -284,9 +260,6 @@ class ParallelWalk():
         # If we have work, then do it, otherwise we ask our peers for some.
 
         while self.finished == False:
-            if self._stonewall() == True:
-              self.finished = True
-              break
             self._CheckforRequests ()
             if len(self.items) > 0:
                 self._ProcessNode()
